@@ -41,10 +41,14 @@ The PPM signal from RC may not be electrically compatible with Arduino. Note tha
 logical levels. Signals below 2.7 V are recognized as low. If you need a logical level converter, you
 can refer to the following schematics:
 ![Logical Level Converter](/doc/logical_level_converter.jpg)
+
 R1 1 .. 3 K
+
 R2 1 .. 3 K
+
 R3 1 .. 3 K (it is used to protect T1 and the microcontroller if you configure the port for output)
-This level convertor inverts the signal. It accepts low input below 0.5 V and high input of 1 .. 5 V.
+
+This level convertor inverts the signal. It accepts low input of 0 .. 0.5 V and high input of 1 .. 5 V.
 
 # License
 
