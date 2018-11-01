@@ -18,6 +18,10 @@
   Public License along with this library; if not, write to the
   Free Software Foundation, Inc., 59 Temple Place, Suite 330,
   Boston, MA  02111-1307  USA
+
+
+  Modified by Mikhail Durnev <mdurnev@gmail.com> to reduce latency in 
+  the timer ISR at the cost of additional calculations in millis().
 */
 
 #include "wiring_private.h"
@@ -36,8 +40,6 @@
 #define FRACT_MAX (1000 >> 3)
 
 volatile unsigned long timer0_overflow_count = 0;
-volatile unsigned long timer0_millis = 0;
-static unsigned char timer0_fract = 0;
 
 #if defined(__AVR_ATtiny24__) || defined(__AVR_ATtiny44__) || defined(__AVR_ATtiny84__)
 ISR(TIM0_OVF_vect)
@@ -45,43 +47,37 @@ ISR(TIM0_OVF_vect)
 ISR(TIMER0_OVF_vect)
 #endif
 {
-	// copy these to local variables so they can be stored in registers
-	// (volatile variables must be read from memory on every access)
-	unsigned long m = timer0_millis;
-	unsigned char f = timer0_fract;
-
-	m += MILLIS_INC;
-	f += FRACT_INC;
-	if (f >= FRACT_MAX) {
-		f -= FRACT_MAX;
-		m += 1;
-	}
-
-	timer0_fract = f;
-	timer0_millis = m;
 	timer0_overflow_count++;
 }
 
 unsigned long millis()
 {
-	unsigned long m;
+	unsigned long toc;
 	uint8_t oldSREG = SREG;
 
-	// disable interrupts while we read timer0_millis or we might get an
-	// inconsistent value (e.g. in the middle of a write to timer0_millis)
+	// disable interrupts while we read timer0_overflow_count or we might get an
+	// inconsistent value (e.g. in the middle of a write to timer0_overflow_count)
 	cli();
-	m = timer0_millis;
+	toc = timer0_overflow_count;
 	SREG = oldSREG;
 
-	return m;
+#if (MILLIS_INC == 1) && (FRACT_INC == 3)
+	return toc + (toc + (toc << 1)) / FRACT_MAX;
+#else
+	return toc * MILLIS_INC + (toc * FRACT_INC) / FRACT_MAX;
+#endif
 }
 
 unsigned long micros() {
 	unsigned long m;
-	uint8_t oldSREG = SREG, t;
+	uint8_t t;
+	uint8_t tifr = 0;
+	uint8_t oldSREG = SREG;
 	
 	cli();
+
 	m = timer0_overflow_count;
+
 #if defined(TCNT0)
 	t = TCNT0;
 #elif defined(TCNT0L)
@@ -91,15 +87,17 @@ unsigned long micros() {
 #endif
 
 #ifdef TIFR0
-	if ((TIFR0 & _BV(TOV0)) && (t < 255))
-		m++;
+	tifr = TIFR0;
 #else
-	if ((TIFR & _BV(TOV0)) && (t < 255))
-		m++;
+	tifr = TIFR;
 #endif
 
 	SREG = oldSREG;
 	
+	if ((tifr & _BV(TOV0)) && (t < 255)) {
+		m++;
+	}
+
 	return ((m << 8) + t) * (64 / clockCyclesPerMicrosecond());
 }
 
