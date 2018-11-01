@@ -23,7 +23,7 @@
 #define EXTERNAL_INT_NUM 6
 
 // Max number of pulses in one frame (usually it does not exceed 10)
-#define MAX_PULSE_NUM 12
+#define MAX_PULSE_NUM 16
 
 // Window size for the FIR filter
 #define PPM_FILTER_WINDOW 4
