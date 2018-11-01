@@ -17,6 +17,11 @@
 ** SOFTWARE.  
 */
 
+/*
+  Modified by Mikhail Durnev <mdurnev@gmail.com> to reduce latency in 
+  the ISRs by enabling nested interrupts in USB ISRs.
+*/
+
 #include "USBAPI.h"
 #include "PluggableUSB.h"
 #include <stdlib.h>
@@ -546,9 +551,8 @@ bool SendDescriptor(USBSetup& setup)
 }
 
 //	Endpoint 0 interrupt
-ISR(USB_COM_vect)
-{
-    SetEP(0);
+void usb_com_isr(void) {
+	SetEP(0);
 	if (!ReceivedSetupInt())
 		return;
 
@@ -562,7 +566,7 @@ ISR(USB_COM_vect)
 	else
 		ClearIN();
 
-    bool ok = true;
+	bool ok = true;
 	if (REQUEST_STANDARD == (requestType & REQUEST_TYPE))
 	{
 		//	Standard Requests
@@ -740,7 +744,7 @@ static inline void USB_ClockEnable()
 }
 
 //	General interrupt
-ISR(USB_GEN_vect)
+void usb_gen_isr(void)
 {
 	u8 udint = UDINT;
 	UDINT &= ~((1<<EORSTI) | (1<<SOFI)); // clear the IRQ flags for the IRQs which are handled here, except WAKEUPI and SUSPI (see below)
@@ -788,6 +792,75 @@ ISR(USB_GEN_vect)
 		UDINT &= ~((1<<WAKEUPI) | (1<<SUSPI)); // clear any already pending WAKEUP IRQs and the SUSPI request
 		_usbSuspendState = (_usbSuspendState & ~(1<<WAKEUPI)) | (1<<SUSPI);
 	}
+}
+
+
+volatile u8 usb_isr_in_progress = 0;
+volatile u8 usb_com_int_waiting = 0;
+volatile u8 usb_gen_int_waiting = 0;
+
+//      General interrupt
+ISR(USB_GEN_vect)
+{
+	if (usb_isr_in_progress) {
+		usb_gen_int_waiting = 1;
+		return;
+	}
+
+	usb_gen_int_waiting = 1;
+	usb_isr_in_progress = 1;
+
+	while (true) {
+		while (usb_gen_int_waiting) {
+			usb_gen_int_waiting = 0;
+			interrupts();
+			usb_gen_isr();
+			noInterrupts();
+		}
+		if (usb_com_int_waiting) {
+			usb_com_int_waiting = 0;
+			interrupts();
+			usb_com_isr();
+			noInterrupts();
+		}
+		if (!usb_gen_int_waiting && !usb_com_int_waiting) {
+			break;
+		}
+	}
+
+	usb_isr_in_progress = 0;
+}
+
+//      Endpoint 0 interrupt
+ISR(USB_COM_vect)
+{
+	if (usb_isr_in_progress) {
+		usb_com_int_waiting = 1;
+		return;
+	}
+
+	usb_com_int_waiting = 1;
+	usb_isr_in_progress = 1;
+
+	while (true) {
+		while (usb_gen_int_waiting) {
+			usb_gen_int_waiting = 0;
+			interrupts();
+			usb_gen_isr();
+			noInterrupts();
+		}
+		if (usb_com_int_waiting) {
+			usb_com_int_waiting = 0;
+			interrupts();
+			usb_com_isr();
+			noInterrupts();
+		}
+		if (!usb_gen_int_waiting && !usb_com_int_waiting) {
+			break;
+		}
+	}
+
+	usb_isr_in_progress = 0;
 }
 
 //	VBUS or counting frames
