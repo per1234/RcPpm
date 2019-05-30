@@ -6,20 +6,20 @@
 # Datatypes (KEYWORD1)
 #######################################
 
-RcPpm                   KEYWORD1
+RcPpm	KEYWORD1
 
 #######################################
 # Methods and Functions (KEYWORD2)
 #######################################
 
-attachInterrupt         KEYWORD2
-detachInterrupt         KEYWORD2
-risingEdgeDetected      KEYWORD2
+attachInterrupt	KEYWORD2
+detachInterrupt	KEYWORD2
+risingEdgeDetected	KEYWORD2
 
 #######################################
 # Constants (LITERAL1)
 #######################################
 
-EXTERNAL_INT_NUM        LITERAL1
-MAX_PULSE_NUM           LITERAL1
-PPM_FILTER_WINDOW       LITERAL1
+EXTERNAL_INT_NUM	LITERAL1
+MAX_PULSE_NUM	LITERAL1
+PPM_FILTER_WINDOW	LITERAL1
